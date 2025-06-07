@@ -1,9 +1,11 @@
 
 import boto3
 
-ec2 = boto3.client('ec2)
+# Step 1: Create boto3 clients for EC2 and CloudWatch
+ec2 = boto3.client('ec2')
 cloudwatch = boto3.client('cloudwatch')
 
-def lambda_handler(event,context):
-  instances = ec2.describe_instance(
-    
+# Step 2: Lambda handler function
+def lambda_handler(event, context):
+    stopped_instances = []
+    print("Starting EC2 CPU utilization check...")
