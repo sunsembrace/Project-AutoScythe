@@ -9,3 +9,18 @@ cloudwatch = boto3.client('cloudwatch')
 def lambda_handler(event, context):
     stopped_instances = []
     print("Starting EC2 CPU utilization check...")
+
+# Step 3: Get all running EC2 instances
+    try:
+        response = ec2.describe_instances(
+            Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]
+        )
+    except Exception as e:
+        print(f"Error fetching EC2 instances: {e}")
+        return {'statusCode': 500, 'body': 'Error fetching EC2 instances'}
+
+    # Step 4: Loop through each EC2 instance returned
+    for reservation in response['Reservations']:
+        for instance in reservation['Instances']:
+            instance_id = instance['InstanceId']
+            print(f"Checking instance: {instance_id}")
