@@ -46,3 +46,13 @@ def lambda_handler(event, context):
                 print(f"Failed to get metrics for {instance_id}: {e}")
                 continue
 
+            # Step 7: Check if datapoints exist
+            datapoints = metric_response.get('Datapoints', [])
+            if not datapoints:
+                print(f"No CPU data for instance {instance_id}")
+                continue
+
+            # Step 8: Get latest datapoint's average CPU usage
+            latest = max(datapoints, key=lambda x: x['Timestamp'])
+            avg_cpu = latest['Average']
+            print(f"{instance_id} - Avg CPU: {avg_cpu:.2f}%")
