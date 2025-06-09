@@ -24,3 +24,25 @@ def lambda_handler(event, context):
         for instance in reservation['Instances']:
             instance_id = instance['InstanceId']
             print(f"Checking instance: {instance_id}")
+
+            # Step 5: Check for AutoStop tag to optionally skip stopping
+            tags = {tag['Key']: tag['Value'] for tag in instance.get('Tags', [])}
+            if tags.get('AutoStop', 'true').lower() != 'true':
+                print(f"Skipping {instance_id} (AutoStop tag disabled)")
+                continue
+
+            # Step 6: Query CloudWatch for average CPU usage in the last 1 hour
+            try:
+                metric_response = cloudwatch.get_metric_statistics(
+                    Namespace='AWS/EC2',
+                    MetricName='CPUUtilization',
+                    Dimensions=[{'Name': 'InstanceId', 'Value': instance_id}],
+                    StartTime=datetime.now(timezone.utc) - timedelta(hours=1),
+                    EndTime=datetime.now(timezone.utc),
+                    Period=3600,
+                    Statistics=['Average']
+                )
+            except Exception as e:
+                print(f"Failed to get metrics for {instance_id}: {e}")
+                continue
+
