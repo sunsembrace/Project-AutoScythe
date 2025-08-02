@@ -1,5 +1,11 @@
-
 import boto3
+from datetime import datetime, timedelta, timezone
+import logging
+
+#Set up logging.
+logger = logging.getLogger()
+
+logger.setLevel(logging.INFO)
 
 # Step 1: Create boto3 clients for EC2 and CloudWatch
 ec2 = boto3.client('ec2')
@@ -8,27 +14,28 @@ cloudwatch = boto3.client('cloudwatch')
 # Step 2: Lambda handler function
 def lambda_handler(event, context):
     stopped_instances = []
-    print("Starting EC2 CPU utilization check...")
 
-# Step 3: Get all running EC2 instances
+    logger.info("Starting EC2 CPU utilization check...")
+
+    # Step 3: Get all running EC2 instances
     try:
         response = ec2.describe_instances(
             Filters=[{'Name': 'instance-state-name', 'Values': ['running']}]
         )
     except Exception as e:
-        print(f"Error fetching EC2 instances: {e}")
+        logger.error(f"Failed to describe instances {e}")
         return {'statusCode': 500, 'body': 'Error fetching EC2 instances'}
 
     # Step 4: Loop through each EC2 instance returned
     for reservation in response['Reservations']:
         for instance in reservation['Instances']:
             instance_id = instance['InstanceId']
-            print(f"Checking instance: {instance_id}")
+            logger.info(f"Checking instance: {instance_id}")
 
             # Step 5: Check for AutoStop tag to optionally skip stopping
             tags = {tag['Key']: tag['Value'] for tag in instance.get('Tags', [])}
             if tags.get('AutoStop', 'true').lower() != 'true':
-                print(f"Skipping {instance_id} (AutoStop tag disabled)")
+                logger.info(f"Skipping {instance_id} (Autostop tag disabled)")
                 continue
 
             # Step 6: Query CloudWatch for average CPU usage in the last 1 hour
@@ -49,27 +56,26 @@ def lambda_handler(event, context):
             # Step 7: Check if datapoints exist
             datapoints = metric_response.get('Datapoints', [])
             if not datapoints:
-                print(f"No CPU data for instance {instance_id}")
+                logger.warning(f"No CPU data for instance {instance_id}")
                 continue
 
             # Step 8: Get latest datapoint's average CPU usage
             latest = max(datapoints, key=lambda x: x['Timestamp'])
             avg_cpu = latest['Average']
-            print(f"{instance_id} - Avg CPU: {avg_cpu:.2f}%")
+            logger.info(f"i{instance_id} - Avg CPU: {avg_cpu:.2f}%")
 
-          # Step 9: Stop instance if CPU usage is below 5%
+            # Step 9: Stop instance if CPU usage is below 5%
             if avg_cpu < 5.0:
                 try:
                     ec2.stop_instances(InstanceIds=[instance_id])
-                    print(f"Stopped instance {instance_id} due to low CPU usage.")
+                    logger.info(f"Stopped instance {instance_id} due to low CPU usage.")
                     stopped_instances.append(instance_id)
                 except Exception as e:
-                    print(f"Failed to stop instance {instance_id}: {e}")
+                    logger.error(f"Failed to stop instance {instance_id}: {e}")
 
     # Step 10: Return the list of stopped instances
-    print(f"Stopped instances: {stopped_instances}")
+    logger.info(f"Stopped instances: {stopped_instances}")
     return {
         'statusCode': 200,
         'body': f"Stopped instances: {stopped_instances}"
     }
-
